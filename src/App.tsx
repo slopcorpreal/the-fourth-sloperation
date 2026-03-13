@@ -32,7 +32,7 @@ function App() {
   const [statusMessage, setStatusMessage] = useState("");
   const [scripts, setScripts] = useState<ChapterScript[]>([]);
   const [busy, setBusy] = useState(false);
-  const [selectedChapterIndexes, setSelectedChapterIndexes] = useState<number[]>([]);
+  const [selectedChapterKeys, setSelectedChapterKeys] = useState<string[]>([]);
   const hasInitializedSelection = useRef(false);
 
   const selectedProvider = useMemo(
@@ -45,35 +45,48 @@ function App() {
     [chapterMaxLength, textbookText],
   );
 
+  const chapterEntries = useMemo(
+    () =>
+      chapters.map((chapter, position) => ({
+        chapter,
+        key: `${position}:${chapter.index}:${chapter.title}`,
+      })),
+    [chapters],
+  );
+
   useEffect(() => {
-    setSelectedChapterIndexes((previousIndexes) => {
+    setSelectedChapterKeys((previousKeys) => {
       if (chapters.length === 0) {
+        hasInitializedSelection.current = false;
         return [];
       }
 
       if (!hasInitializedSelection.current) {
         hasInitializedSelection.current = true;
-        return chapters.map((chapter) => chapter.index);
+        return chapterEntries.map((entry) => entry.key);
       }
 
-      const availableIndexes = new Set(chapters.map((chapter) => chapter.index));
-      return previousIndexes.filter((index) => availableIndexes.has(index));
+      const availableKeys = new Set(chapterEntries.map((entry) => entry.key));
+      return previousKeys.filter((key) => availableKeys.has(key));
     });
-  }, [chapters]);
+  }, [chapterEntries, chapters.length]);
 
   const selectedChapters = useMemo(
     () =>
-      chapters.filter((chapter) =>
-        selectedChapterIndexes.includes(chapter.index),
-      ),
-    [chapters, selectedChapterIndexes],
+      chapterEntries
+        .filter((entry) => selectedChapterKeys.includes(entry.key))
+        .map((entry) => entry.chapter),
+    [chapterEntries, selectedChapterKeys],
   );
 
   const maxUnlockedStep = useMemo(() => {
+    const kokoroConfigured = Boolean(
+      kokoroModelPath.trim() && kokoroVoicesPath.trim(),
+    );
+
     if (chapters.length === 0) return 0;
     if (selectedChapters.length === 0) return 1;
-    if (!kokoroModelPath.trim() || !kokoroVoicesPath.trim()) return 2;
-    if (scripts.length === 0) return 3;
+    if (scripts.length === 0 || !kokoroConfigured) return 3;
     return 4;
   }, [
     chapters.length,
@@ -83,26 +96,30 @@ function App() {
     selectedChapters.length,
   ]);
 
+  useEffect(() => {
+    setCurrentStep((previousStep) => Math.min(previousStep, maxUnlockedStep));
+  }, [maxUnlockedStep]);
+
   function openStep(step: number) {
     if (step <= maxUnlockedStep) {
       setCurrentStep(step);
     }
   }
 
-  function toggleChapter(index: number) {
-    setSelectedChapterIndexes((previousIndexes) =>
-      previousIndexes.includes(index)
-        ? previousIndexes.filter((chapterIndex) => chapterIndex !== index)
-        : [...previousIndexes, index],
+  function toggleChapter(key: string) {
+    setSelectedChapterKeys((previousKeys) =>
+      previousKeys.includes(key)
+        ? previousKeys.filter((chapterKey) => chapterKey !== key)
+        : [...previousKeys, key],
     );
   }
 
   function selectAllChapters() {
-    setSelectedChapterIndexes(chapters.map((chapter) => chapter.index));
+    setSelectedChapterKeys(chapterEntries.map((entry) => entry.key));
   }
 
   function clearChapterSelection() {
-    setSelectedChapterIndexes([]);
+    setSelectedChapterKeys([]);
   }
 
   async function generateScripts() {
@@ -144,7 +161,11 @@ function App() {
       setStatusMessage(
         `Done. ${generatedScripts.length} episode scripts are ready for voice synthesis.`,
       );
-      if (currentStep < 4) {
+      if (
+        currentStep < 4 &&
+        kokoroModelPath.trim() &&
+        kokoroVoicesPath.trim()
+      ) {
         setCurrentStep(4);
       }
     } finally {
@@ -208,7 +229,9 @@ function App() {
     <div className="shell">
       <header className="topbar">
         <div className="logo">
-          <span className="logo-icon">🎙</span>
+          <span className="logo-icon" aria-hidden="true">
+            🎙
+          </span>
           <div>
             <p className="logo-title">The Fourth Sloperation</p>
             <p className="logo-subtitle">Podcast forge for regular humans</p>
@@ -266,7 +289,9 @@ function App() {
               Paste textbook text below. Keep headings like “Chapter 1” so we can split it
               automatically.
             </p>
+            <label htmlFor="textbook-content">Textbook text</label>
             <textarea
+              id="textbook-content"
               value={textbookText}
               onChange={(event) => setTextbookText(event.currentTarget.value)}
               placeholder="Paste textbook text here..."
@@ -312,15 +337,15 @@ function App() {
               </span>
             </div>
             <ul className="chapter-list">
-              {chapters.map((chapter) => {
-                const selected = selectedChapterIndexes.includes(chapter.index);
+              {chapterEntries.map(({ chapter, key }) => {
+                const selected = selectedChapterKeys.includes(key);
                 return (
-                  <li key={`${chapter.index}-${chapter.title}`}>
+                  <li key={key}>
                     <label className={`chapter-item ${selected ? "selected" : ""}`}>
                       <input
                         type="checkbox"
                         checked={selected}
-                        onChange={() => toggleChapter(chapter.index)}
+                        onChange={() => toggleChapter(key)}
                       />
                       <span>
                         <strong>{chapter.title}</strong>
@@ -437,7 +462,6 @@ function App() {
                 </button>
                 <button
                   className="btn-primary"
-                  disabled={maxUnlockedStep < 3}
                   onClick={() => setCurrentStep(3)}
                 >
                   Continue to generation →
@@ -491,8 +515,10 @@ function App() {
               <p className="hint">No scripts yet. Use the previous step to generate them first.</p>
             ) : (
               <ul className="script-list">
-                {scripts.map((script) => (
-                  <li key={`${script.chapter.index}-${script.chapter.title}`}>
+                {scripts.map((script, scriptIndex) => (
+                  <li
+                    key={`${script.chapter.index}-${script.chapter.title}-${script.provider}-${scriptIndex}`}
+                  >
                     <div className="script-head">
                       <h2>{script.chapter.title}</h2>
                       <button

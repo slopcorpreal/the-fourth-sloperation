@@ -231,21 +231,31 @@ p {
 }
 
 textarea,
-input,
 select,
-button {
+button,
+input[type="text"],
+input[type="password"],
+input[type="number"] {
   font: inherit;
 }
 
 textarea,
-input,
-select {
+select,
+input[type="text"],
+input[type="password"],
+input[type="number"] {
   width: 100%;
   border: 1.5px solid var(--sand);
   background: var(--cream);
   border-radius: 10px;
   padding: 0.62rem 0.72rem;
   color: var(--ink);
+}
+
+input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--orange);
 }
 
 textarea {
