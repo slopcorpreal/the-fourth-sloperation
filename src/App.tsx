@@ -18,12 +18,16 @@ const STEP_TITLES = [
   "Listen + synthesize",
 ] as const;
 
-function parseSemver(version: string) {
+function parseSemverComponents(version: string) {
   const [major = "0", minor = "0", patch = "0"] = version.split(".", 3);
+  const parsedMajor = Number.parseInt(major, 10);
+  const parsedMinor = Number.parseInt(minor, 10);
+  const parsedPatch = Number.parseInt(patch, 10);
+
   return {
-    major: Number(major),
-    minor: Number(minor),
-    patch: Number(patch),
+    major: Number.isFinite(parsedMajor) ? parsedMajor : 0,
+    minor: Number.isFinite(parsedMinor) ? parsedMinor : 0,
+    patch: Number.isFinite(parsedPatch) ? parsedPatch : 0,
   };
 }
 
@@ -124,8 +128,8 @@ function App() {
           return;
         }
 
-        const currentVersion = parseSemver(update.currentVersion);
-        const nextVersion = parseSemver(update.version);
+        const currentVersion = parseSemverComponents(update.currentVersion);
+        const nextVersion = parseSemverComponents(update.version);
         const shouldPromptUpdate =
           nextVersion.major > currentVersion.major ||
           nextVersion.minor > currentVersion.minor;

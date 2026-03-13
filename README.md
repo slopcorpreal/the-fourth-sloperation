@@ -98,8 +98,8 @@ Versioning policy used by CI:
 
 Updater behavior in-app:
 
-- Prompts for install when **major** changes.
-- Prompts for install when **minor** changes (commit-count based releases/significant updates).
+- Prompts for install when the **major version** increases.
+- Prompts for install when the **minor version** increases (commit-count based releases/significant updates).
 - Downloads and installs update package, then asks user to restart.
 
 ### Required secrets for signed updater artifacts
@@ -118,7 +118,8 @@ npx tauri signer generate --ci --write-keys /tmp/updater.key
 
 Then keep the private key secret and configure the public key in
 the `TAURI_SIGNING_PUBLIC_KEY` repository secret (CI injects it into
-`src-tauri/tauri.conf.json` at build time).
+`src-tauri/tauri.conf.json` at build time). The committed config keeps a
+placeholder (`__SET_FROM_TAURI_SIGNING_PUBLIC_KEY_SECRET__`) intentionally.
 
 ---
 

@@ -55,10 +55,29 @@ jobs:
           MAJOR="$(node -p "require('./src-tauri/tauri.conf.json').version.split('.')[0]")"
           VERSION="${MAJOR}.${COMMIT_COUNT}.0"
           TAG="v${VERSION}"
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Release tag ${TAG} already exists; bump major version in src-tauri/tauri.conf.json before re-running." >&2
+            exit 1
+          fi
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
           echo "RELEASE_VERSION=${VERSION}" >> "${GITHUB_ENV}"
           echo "RELEASE_TAG=${TAG}" >> "${GITHUB_ENV}"
+
+      - name: Validate updater signing secrets
+        env:
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          if [ -z "${TAURI_SIGNING_PUBLIC_KEY}" ]; then
+            echo "TAURI_SIGNING_PUBLIC_KEY secret is required for updater builds." >&2
+            exit 1
+          fi
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY secret is required for updater builds." >&2
+            exit 1
+          fi
 
       - name: Sync versions for this build
         shell: bash
