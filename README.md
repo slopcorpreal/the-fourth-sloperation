@@ -81,6 +81,47 @@ npm run build
 
 ---
 
+## Release CI + updater policy
+
+This repository now ships desktop binaries through GitHub Releases via
+`.github/workflows/release.yml`.
+
+- Trigger: push to `main`/`master` (or manual `workflow_dispatch`)
+- Build targets: macOS, Linux, Windows standalone Tauri bundles
+- Auto updater feed: `https://github.com/slopcorpreal/the-fourth-sloperation/releases/latest/download/latest.json`
+
+Versioning policy used by CI:
+
+- **Major**: manually managed for initial release / massive refactors.
+- **Minor**: automatic `git rev-list --count HEAD` commit count.
+- **Patch**: reserved for local hotfix sequencing (currently fixed at `0` in CI releases).
+
+Updater behavior in-app:
+
+- Prompts for install when **major** changes.
+- Prompts for install when **minor** changes (commit-count based releases/significant updates).
+- Downloads and installs update package, then asks user to restart.
+
+### Required secrets for signed updater artifacts
+
+Set these repository secrets before enabling production releases:
+
+- `TAURI_SIGNING_PUBLIC_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (optional if your key has no password)
+
+To generate a key pair locally:
+
+```bash
+npx tauri signer generate --ci --write-keys /tmp/updater.key
+```
+
+Then keep the private key secret and configure the public key in
+the `TAURI_SIGNING_PUBLIC_KEY` repository secret (CI injects it into
+`src-tauri/tauri.conf.json` at build time).
+
+---
+
 ## Architecture summary
 
 - `src/App.tsx`  

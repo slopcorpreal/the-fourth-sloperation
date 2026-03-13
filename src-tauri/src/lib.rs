@@ -103,6 +103,7 @@ sf.write(output_path, samples, sample_rate)
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             check_ort_runtime,
             synthesize_chapter_audio
