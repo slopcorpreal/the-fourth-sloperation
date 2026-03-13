@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import {
   buildOfflineFallbackScript,
@@ -16,6 +17,19 @@ const STEP_TITLES = [
   "Generate scripts",
   "Listen + synthesize",
 ] as const;
+
+function parseSemverComponents(version: string) {
+  const [major = "0", minor = "0", patch = "0"] = version.split(".", 3);
+  const parsedMajor = Number.parseInt(major, 10);
+  const parsedMinor = Number.parseInt(minor, 10);
+  const parsedPatch = Number.parseInt(patch, 10);
+
+  return {
+    major: Number.isFinite(parsedMajor) ? parsedMajor : 0,
+    minor: Number.isFinite(parsedMinor) ? parsedMinor : 0,
+    patch: Number.isFinite(parsedPatch) ? parsedPatch : 0,
+  };
+}
 
 function App() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -99,6 +113,57 @@ function App() {
   useEffect(() => {
     setCurrentStep((previousStep) => Math.min(previousStep, maxUnlockedStep));
   }, [maxUnlockedStep]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkForUpdates() {
+      if (!isTauri()) {
+        return;
+      }
+
+      try {
+        const update = await check();
+        if (!update || cancelled) {
+          return;
+        }
+
+        const currentVersion = parseSemverComponents(update.currentVersion);
+        const nextVersion = parseSemverComponents(update.version);
+        const shouldPromptUpdate =
+          nextVersion.major > currentVersion.major ||
+          nextVersion.minor > currentVersion.minor;
+
+        if (!shouldPromptUpdate) {
+          return;
+        }
+
+        const shouldInstall = window.confirm(
+          `Update ${update.version} is available (current ${update.currentVersion}). Install now?`,
+        );
+        if (!shouldInstall || cancelled) {
+          return;
+        }
+
+        setStatusMessage(`Downloading update ${update.version}...`);
+        await update.downloadAndInstall();
+        if (!cancelled) {
+          setStatusMessage(
+            `Update ${update.version} installed. Please restart the app to finish updating.`,
+          );
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setStatusMessage(`Updater check skipped: ${String(error)}`);
+        }
+      }
+    }
+
+    void checkForUpdates();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function openStep(step: number) {
     if (step <= maxUnlockedStep) {

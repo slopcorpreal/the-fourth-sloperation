@@ -1,0 +1,111 @@
+name: Release standalone binaries
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+          - platform: ubuntu-22.04
+          - platform: windows-latest
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Derive release version from commit count
+        id: version
+        shell: bash
+        run: |
+          COMMIT_COUNT="$(git rev-list --count HEAD)"
+          MAJOR="$(node -p "require('./src-tauri/tauri.conf.json').version.split('.')[0]")"
+          VERSION="${MAJOR}.${COMMIT_COUNT}.0"
+          TAG="v${VERSION}"
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Release tag ${TAG} already exists; bump major version in src-tauri/tauri.conf.json before re-running." >&2
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "RELEASE_VERSION=${VERSION}" >> "${GITHUB_ENV}"
+          echo "RELEASE_TAG=${TAG}" >> "${GITHUB_ENV}"
+
+      - name: Validate updater signing secrets
+        env:
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          if [ -z "${TAURI_SIGNING_PUBLIC_KEY}" ]; then
+            echo "TAURI_SIGNING_PUBLIC_KEY secret is required for updater builds." >&2
+            exit 1
+          fi
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY secret is required for updater builds." >&2
+            exit 1
+          fi
+
+      - name: Sync versions for this build
+        shell: bash
+        run: |
+          node -e "const fs=require('fs');const p='package.json';const f=JSON.parse(fs.readFileSync(p,'utf8'));f.version=process.env.RELEASE_VERSION;fs.writeFileSync(p,JSON.stringify(f,null,2)+'\n');"
+          node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const f=JSON.parse(fs.readFileSync(p,'utf8'));f.version=process.env.RELEASE_VERSION;fs.writeFileSync(p,JSON.stringify(f,null,2)+'\n');"
+          node -e "const fs=require('fs');const p='src-tauri/Cargo.toml';const src=fs.readFileSync(p,'utf8');const out=src.replace(/^version = \".*\"$/m,`version = \"${process.env.RELEASE_VERSION}\"`);fs.writeFileSync(p,out);"
+          node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const f=JSON.parse(fs.readFileSync(p,'utf8'));f.plugins.updater.pubkey=process.env.TAURI_SIGNING_PUBLIC_KEY;fs.writeFileSync(p,JSON.stringify(f,null,2)+'\n');"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and publish release binaries
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ steps.version.outputs.tag }}
+          releaseName: The Fourth Sloperation v__VERSION__
+          releaseBody: |
+            Automated standalone build for version __VERSION__.
+
+            Version policy:
+            - Major = manually managed for massive refactors/initial release.
+            - Minor = git commit count.
+            - Patch = reserved for local hotfix sequencing.
+          releaseDraft: false
+          prerelease: false
