@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import {
@@ -10,7 +10,7 @@ import {
 } from "./lib/podcast";
 
 const STEP_TITLES = [
-  "Add textbook",
+  "Add textbook content",
   "Choose chapters",
   "Configure AI + voices",
   "Generate scripts",
@@ -33,6 +33,7 @@ function App() {
   const [scripts, setScripts] = useState<ChapterScript[]>([]);
   const [busy, setBusy] = useState(false);
   const [selectedChapterIndexes, setSelectedChapterIndexes] = useState<number[]>([]);
+  const hasInitializedSelection = useRef(false);
 
   const selectedProvider = useMemo(
     () => FREE_LLM_PROVIDERS.find((provider) => provider.id === providerId)!,
@@ -45,7 +46,19 @@ function App() {
   );
 
   useEffect(() => {
-    setSelectedChapterIndexes(chapters.map((chapter) => chapter.index));
+    setSelectedChapterIndexes((previousIndexes) => {
+      if (chapters.length === 0) {
+        return [];
+      }
+
+      if (!hasInitializedSelection.current) {
+        hasInitializedSelection.current = true;
+        return chapters.map((chapter) => chapter.index);
+      }
+
+      const availableIndexes = new Set(chapters.map((chapter) => chapter.index));
+      return previousIndexes.filter((index) => availableIndexes.has(index));
+    });
   }, [chapters]);
 
   const selectedChapters = useMemo(
@@ -59,9 +72,16 @@ function App() {
   const maxUnlockedStep = useMemo(() => {
     if (chapters.length === 0) return 0;
     if (selectedChapters.length === 0) return 1;
+    if (!kokoroModelPath.trim() || !kokoroVoicesPath.trim()) return 2;
     if (scripts.length === 0) return 3;
     return 4;
-  }, [chapters.length, scripts.length, selectedChapters.length]);
+  }, [
+    chapters.length,
+    kokoroModelPath,
+    kokoroVoicesPath,
+    scripts.length,
+    selectedChapters.length,
+  ]);
 
   function openStep(step: number) {
     if (step <= maxUnlockedStep) {
@@ -70,10 +90,10 @@ function App() {
   }
 
   function toggleChapter(index: number) {
-    setSelectedChapterIndexes((previous) =>
-      previous.includes(index)
-        ? previous.filter((chapterIndex) => chapterIndex !== index)
-        : [...previous, index],
+    setSelectedChapterIndexes((previousIndexes) =>
+      previousIndexes.includes(index)
+        ? previousIndexes.filter((chapterIndex) => chapterIndex !== index)
+        : [...previousIndexes, index],
     );
   }
 
@@ -92,7 +112,9 @@ function App() {
     }
 
     setBusy(true);
-    setCurrentStep(3);
+    if (currentStep < 3) {
+      setCurrentStep(3);
+    }
     setStatusMessage("Generating podcast scripts...");
     try {
       const model = modelOverride.trim() || selectedProvider.defaultModel;
@@ -122,7 +144,9 @@ function App() {
       setStatusMessage(
         `Done. ${generatedScripts.length} episode scripts are ready for voice synthesis.`,
       );
-      setCurrentStep(4);
+      if (currentStep < 4) {
+        setCurrentStep(4);
+      }
     } finally {
       setBusy(false);
     }
@@ -171,8 +195,8 @@ function App() {
       done: selectedChapters.length > 0,
     },
     {
-      label: "Set LLM provider + optional API key for richer scripts.",
-      done: Boolean(providerId),
+      label: "Optional: add API key/model override for richer scripts.",
+      done: Boolean(apiKey.trim() || modelOverride.trim()),
     },
     {
       label: "Add Kokoro model + voices paths for local narration.",
@@ -192,7 +216,7 @@ function App() {
         </div>
         <div className="status-pills">
           <span className={apiKey.trim() ? "pill ok" : "pill warn"}>
-            {apiKey.trim() ? "API key connected" : "No API key (offline fallback on)"}
+            {apiKey.trim() ? "API key connected" : "No API key (offline mode active)"}
           </span>
           <span className="pill neutral">
             {busy ? "Working..." : `${scripts.length} scripts ready`}
@@ -237,7 +261,7 @@ function App() {
       <main className="content">
         {currentStep === 0 ? (
           <section className="card">
-            <h1>1) Add your textbook content</h1>
+            <h1>Add your textbook content</h1>
             <p className="lead">
               Paste textbook text below. Keep headings like “Chapter 1” so we can split it
               automatically.
@@ -274,7 +298,7 @@ function App() {
 
         {currentStep === 1 ? (
           <section className="card">
-            <h1>2) Choose chapters</h1>
+            <h1>Choose chapters</h1>
             <p className="lead">Each selected chapter becomes one podcast episode.</p>
             <div className="inline-actions">
               <button className="btn-secondary" onClick={selectAllChapters}>
@@ -324,7 +348,7 @@ function App() {
 
         {currentStep === 2 ? (
           <section className="card">
-            <h1>3) Configure AI + voice setup</h1>
+            <h1>Configure AI + voice setup</h1>
             <p className="lead">
               This is your one-time setup. Once paths are saved, generating episodes is a
               one-click workflow.
@@ -353,7 +377,7 @@ function App() {
                 />
               </label>
               <label className="full">
-                API key (optional, local only)
+                API key (optional for cloud LLM calls)
                 <input
                   type="password"
                   value={apiKey}
@@ -411,7 +435,11 @@ function App() {
                 <button className="btn-secondary" disabled={busy} onClick={runOrtCheck}>
                   Check ORT runtime
                 </button>
-                <button className="btn-primary" onClick={() => setCurrentStep(3)}>
+                <button
+                  className="btn-primary"
+                  disabled={maxUnlockedStep < 3}
+                  onClick={() => setCurrentStep(3)}
+                >
                   Continue to generation →
                 </button>
               </div>
@@ -421,7 +449,7 @@ function App() {
 
         {currentStep === 3 ? (
           <section className="card">
-            <h1>4) Generate scripts</h1>
+            <h1>Generate scripts</h1>
             <p className="lead">
               Generate scripts for your selected chapters. If no API key is set, the app uses
               a built-in offline fallback script.
@@ -454,13 +482,13 @@ function App() {
 
         {currentStep === 4 ? (
           <section className="card">
-            <h1>5) Listen + synthesize audio</h1>
+            <h1>Listen + synthesize audio</h1>
             <p className="lead">
               Scripts are ready. Click synthesize on any chapter to produce narration with
               Kokoro ONNX.
             </p>
             {scripts.length === 0 ? (
-              <p className="hint">No scripts yet. Use step 4 to generate them first.</p>
+              <p className="hint">No scripts yet. Use the previous step to generate them first.</p>
             ) : (
               <ul className="script-list">
                 {scripts.map((script) => (
