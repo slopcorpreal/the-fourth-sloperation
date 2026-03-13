@@ -1,0 +1,152 @@
+:root {
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #f7f7ff;
+  background: radial-gradient(circle at top left, #22155f 0%, #090811 48%, #050509 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.container {
+  width: min(1060px, 94vw);
+  margin: 0 auto;
+  padding: 2.2rem 0 4rem;
+  display: grid;
+  gap: 1rem;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+
+header,
+.panel,
+.actions {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: linear-gradient(130deg, rgba(34, 28, 79, 0.86), rgba(13, 12, 24, 0.88));
+  backdrop-filter: blur(10px);
+  padding: 1rem 1.1rem;
+}
+
+.badge {
+  display: inline-flex;
+  margin: 0 0 0.5rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(115, 103, 240, 0.35);
+  font-size: 0.78rem;
+}
+
+.subhead {
+  margin: 0.5rem 0 0;
+  color: #cdc8f9;
+}
+
+textarea,
+input,
+select,
+button {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  background: rgba(8, 8, 18, 0.8);
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+}
+
+textarea {
+  min-height: 220px;
+  resize: vertical;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.8rem;
+  font-size: 0.92rem;
+  color: #d8d4ff;
+}
+
+.row {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.actions {
+  display: flex;
+  gap: 0.8rem;
+}
+
+button {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover:enabled {
+  border-color: #d971ff;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint,
+.meta,
+.status {
+  margin: 0.6rem 0 0;
+  color: #c5c0f0;
+}
+
+.scripts {
+  list-style: none;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.scripts li {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.script-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+pre {
+  margin: 0.4rem 0 0;
+  white-space: pre-wrap;
+  line-height: 1.4;
+  color: #faf9ff;
+}
+
+a {
+  color: #f1a8ff;
+}
