@@ -247,19 +247,25 @@ function App() {
     );
   }
 
-  async function synthesizeChapter(script: ChapterScript) {
+  async function synthesizeChapter(
+    script: ChapterScript,
+    chapterPosition: number,
+  ) {
     setBusy(true);
     setStatusMessage(`Synthesizing ${script.chapter.title} with Kokoro...`);
     try {
+      const parsedSpeed = Number(speed);
+      const synthesisSpeed =
+        Number.isFinite(parsedSpeed) && parsedSpeed > 0 ? parsedSpeed : 1;
       const result = await invoke<{ outputPath: string }>("synthesize_chapter_audio", {
         request: {
-          chapterIndex: script.chapter.index,
+          chapterIndex: chapterPosition,
           chapterTitle: script.chapter.title,
           chapterScript: script.script,
           modelPath: kokoroModelPath,
           voicesPath: kokoroVoicesPath,
           voice,
-          speed: Number(speed),
+          speed: synthesisSpeed,
           outputDirectory,
         },
       });
@@ -368,9 +374,14 @@ function App() {
                 min={1000}
                 max={40000}
                 value={chapterMaxLength}
-                onChange={(event) =>
-                  setChapterMaxLength(Number(event.currentTarget.value))
-                }
+                onChange={(event) => {
+                  const nextValue = Number(event.currentTarget.value);
+                  if (Number.isFinite(nextValue)) {
+                    setChapterMaxLength(
+                      Math.min(40000, Math.max(1000, Math.trunc(nextValue))),
+                    );
+                  }
+                }}
               />
             </label>
             <p className="hint">Detected chapters: {chapters.length}</p>
@@ -589,9 +600,9 @@ function App() {
                       <button
                         className="btn-secondary"
                         disabled={
-                          busy || !kokoroModelPath.trim() || !kokoroVoicesPath.trim()
+                         busy || !kokoroModelPath.trim() || !kokoroVoicesPath.trim()
                         }
-                        onClick={() => synthesizeChapter(script)}
+                        onClick={() => synthesizeChapter(script, scriptIndex)}
                       >
                         Synthesize audio
                       </button>
